@@ -1,0 +1,65 @@
+# Миграции — это версионный контроль для схемы базы данных.
+#
+# Зачем они нужны:
+#   - Воспроизводимость: каждый разработчик и каждый сервер поднимает
+#     одну и ту же схему из одного источника правды.
+#   - Откат: если новая версия схемы сломала прод, достаточно запустить
+#     "down" — и база вернётся в предыдущее состояние.
+#   - История изменений: по файлам миграций видно, как схема менялась
+#     с течением времени, кто и когда вносил изменения.
+#   - Командная работа: нет конфликтов "у меня другая таблица, чем у тебя".
+#
+# goose — один из самых популярных инструментов миграций для Go.
+# Он хранит историю применённых миграций в таблице goose_db_version.
+#
+# Использование:
+#   task goose:install   — установить goose
+#   task migrate:up      — применить все новые миграции
+#   task migrate:down    — откатить последнюю миграцию
+#   task migrate:status  — показать статус миграций
+#   task migrate:create -- add_users_table  — создать новую миграцию
+
+version: '3'
+
+vars:
+  GOOSE_VERSION: 'v3.27.0'
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOOSE: '{{.BIN_DIR}}/goose'
+
+tasks:
+  goose:install:
+    desc: "Устанавливает goose (миграции БД)"
+    cmds:
+      - echo 'Устанавливаем goose...'
+      - GOBIN={{.BIN_DIR}} go install github.com/pressly/goose/v3/cmd/goose@{{.GOOSE_VERSION}}
+    status:
+      - test -x {{.GOOSE}}
+
+  migrate:up:
+    desc: "Применяет все миграции"
+    deps: [goose:install]
+    dotenv: ['./.env']
+    cmds:
+      - '{{.GOOSE}} -dir migrations postgres "$PG_DSN" up'
+
+  migrate:down:
+    desc: "Откатывает последнюю миграцию"
+    deps: [goose:install]
+    dotenv: ['./.env']
+    cmds:
+      - '{{.GOOSE}} -dir migrations postgres "$PG_DSN" down'
+
+  migrate:status:
+    desc: "Показывает статус миграций"
+    deps: [goose:install]
+    dotenv: ['./.env']
+    cmds:
+      - '{{.GOOSE}} -dir migrations postgres "$PG_DSN" status'
+
+  migrate:create:
+    desc: "Создаёт новый файл миграции. Использование: task migrate:create -- <имя_миграции>"
+    deps: [goose:install]
+    cmds:
+      # goose create генерирует файл вида 20260402153000_<имя>.sql
+      # с заготовками -- +goose Up и -- +goose Down внутри.
+      - '{{.GOOSE}} -dir migrations create {{.CLI_ARGS}} sql'

@@ -5,8 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"yachtcharter/internal/repository"
-	"yachtcharter/internal/service"
+	"resume/internal/service"
+
+	"resume/internal/repository"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -1,0 +1,7 @@
+version: "2"
+
+linters:
+  settings:
+    iface:
+      # Returning interfaces from constructors is the standard Go DI pattern.
+      enabled: false

@@ -63,3 +63,33 @@ tasks:
       # goose create генерирует файл вида 20260402153000_<имя>.sql
       # с заготовками -- +goose Up и -- +goose Down внутри.
       - '{{.GOOSE}} -dir migrations create {{.CLI_ARGS}} sql'
+
+  dev:
+    desc: "Запускает сервер в режиме разработки (hot reload не включён)"
+    cmds:
+      - go run ./cmd/resume/
+
+  build:
+    desc: "Собирает бинарник в bin/resume"
+    cmds:
+      - go build -o {{.BIN_DIR}}/resume ./cmd/resume/
+
+  test:
+    desc: "Запускает все тесты"
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: "Запускает golangci-lint"
+    cmds:
+      - golangci-lint run ./...
+
+  docker:up:
+    desc: "Поднимает PostgreSQL контейнер"
+    cmds:
+      - docker compose up -d
+
+  docker:down:
+    desc: "Останавливает PostgreSQL контейнер"
+    cmds:
+      - docker compose down

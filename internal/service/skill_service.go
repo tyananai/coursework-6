@@ -17,8 +17,8 @@ import (
 type SkillService interface {
 	CreateSkill(ctx context.Context, req CreateSkillRequest) (*models.Skill, error)
 	GetSkill(ctx context.Context, id uuid.UUID) (*models.Skill, error)
-	UpdateSkill(ctx context.Context, id uuid.UUID, req UpdateSkillRequest) (*models.Skill, error)
-	DeleteSkill(ctx context.Context, id uuid.UUID) error
+	UpdateSkill(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateSkillRequest) (*models.Skill, error)
+	DeleteSkill(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error
 	ListSkills(ctx context.Context, userID uuid.UUID) ([]*models.Skill, error)
 }
 
@@ -70,7 +70,7 @@ func (s *skillService) GetSkill(ctx context.Context, id uuid.UUID) (*models.Skil
 	return sk, nil
 }
 
-func (s *skillService) UpdateSkill(ctx context.Context, id uuid.UUID, req UpdateSkillRequest) (*models.Skill, error) {
+func (s *skillService) UpdateSkill(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateSkillRequest) (*models.Skill, error) {
 	if err := s.validate.Struct(req); err != nil {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, err.Error())
 	}
@@ -80,6 +80,9 @@ func (s *skillService) UpdateSkill(ctx context.Context, id uuid.UUID, req Update
 			return nil, apperrors.ErrNotFound
 		}
 		return nil, fmt.Errorf("skillService.UpdateSkill: %w", err)
+	}
+	if err = s.checkOwner(ctx, sk.UserID, accountID); err != nil {
+		return nil, err
 	}
 	sk.Name = req.Name
 	sk.Category = req.Category
@@ -93,13 +96,36 @@ func (s *skillService) UpdateSkill(ctx context.Context, id uuid.UUID, req Update
 	return sk, nil
 }
 
-func (s *skillService) DeleteSkill(ctx context.Context, id uuid.UUID) error {
-	err := s.skills.Delete(ctx, id)
+func (s *skillService) DeleteSkill(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error {
+	sk, err := s.skills.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			return apperrors.ErrNotFound
 		}
 		return fmt.Errorf("skillService.DeleteSkill: %w", err)
+	}
+	if err = s.checkOwner(ctx, sk.UserID, accountID); err != nil {
+		return err
+	}
+	if err = s.skills.Delete(ctx, id); err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("skillService.DeleteSkill: %w", err)
+	}
+	return nil
+}
+
+func (s *skillService) checkOwner(ctx context.Context, userID uuid.UUID, accountID uuid.UUID) error {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("skillService.checkOwner: %w", err)
+	}
+	if u.AccountID == nil || *u.AccountID != accountID {
+		return apperrors.ErrUnauthorized
 	}
 	return nil
 }

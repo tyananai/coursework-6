@@ -18,9 +18,9 @@ import (
 type UserService interface {
 	CreateUser(ctx context.Context, accountID uuid.UUID, req CreateUserRequest) (*models.User, error)
 	GetUser(ctx context.Context, id uuid.UUID) (*UserResponse, error)
-	UpdateUser(ctx context.Context, id uuid.UUID, req UpdateUserRequest) (*models.User, error)
-	UpdateUserPhoto(ctx context.Context, id uuid.UUID, photoURL string) (*models.User, error)
-	DeleteUser(ctx context.Context, id uuid.UUID) error
+	UpdateUser(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateUserRequest) (*models.User, error)
+	UpdateUserPhoto(ctx context.Context, accountID uuid.UUID, id uuid.UUID, photoURL string) (*models.User, error)
+	DeleteUser(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error
 	ListUsers(ctx context.Context, filter UserFilter) ([]*UserResponse, error)
 }
 
@@ -81,7 +81,7 @@ func (s *userService) GetUser(ctx context.Context, id uuid.UUID) (*UserResponse,
 	return s.buildUserResponse(ctx, u)
 }
 
-func (s *userService) UpdateUser(ctx context.Context, id uuid.UUID, req UpdateUserRequest) (*models.User, error) {
+func (s *userService) UpdateUser(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateUserRequest) (*models.User, error) {
 	if err := s.validate.Struct(req); err != nil {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, err.Error())
 	}
@@ -91,6 +91,9 @@ func (s *userService) UpdateUser(ctx context.Context, id uuid.UUID, req UpdateUs
 			return nil, apperrors.ErrNotFound
 		}
 		return nil, fmt.Errorf("userService.UpdateUser: %w", err)
+	}
+	if u.AccountID == nil || *u.AccountID != accountID {
+		return nil, apperrors.ErrUnauthorized
 	}
 	u.FirstName = req.FirstName
 	u.LastName = req.LastName
@@ -107,13 +110,16 @@ func (s *userService) UpdateUser(ctx context.Context, id uuid.UUID, req UpdateUs
 	return u, nil
 }
 
-func (s *userService) UpdateUserPhoto(ctx context.Context, id uuid.UUID, photoURL string) (*models.User, error) {
+func (s *userService) UpdateUserPhoto(ctx context.Context, accountID uuid.UUID, id uuid.UUID, photoURL string) (*models.User, error) {
 	u, err := s.users.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			return nil, apperrors.ErrNotFound
 		}
 		return nil, fmt.Errorf("userService.UpdateUserPhoto: %w", err)
+	}
+	if u.AccountID == nil || *u.AccountID != accountID {
+		return nil, apperrors.ErrUnauthorized
 	}
 	u.PhotoURL = &photoURL
 	if err = s.users.Update(ctx, u); err != nil {
@@ -125,9 +131,18 @@ func (s *userService) UpdateUserPhoto(ctx context.Context, id uuid.UUID, photoUR
 	return u, nil
 }
 
-func (s *userService) DeleteUser(ctx context.Context, id uuid.UUID) error {
-	err := s.users.Delete(ctx, id)
+func (s *userService) DeleteUser(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error {
+	u, err := s.users.GetByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("userService.DeleteUser: %w", err)
+	}
+	if u.AccountID == nil || *u.AccountID != accountID {
+		return apperrors.ErrUnauthorized
+	}
+	if err = s.users.Delete(ctx, id); err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			return apperrors.ErrNotFound
 		}

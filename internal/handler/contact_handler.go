@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"resume/internal/apperrors"
+	"resume/internal/middleware"
 	"resume/internal/render"
 	"resume/internal/service"
 )
@@ -47,6 +49,11 @@ func (h *ContactHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContactHandler) update(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	cid, err := parseUUID(r, "cid")
 	if err != nil {
 		render.Error(w, err)
@@ -57,7 +64,7 @@ func (h *ContactHandler) update(w http.ResponseWriter, r *http.Request) {
 		render.Error(w, err)
 		return
 	}
-	c, err := h.svc.UpdateContact(r.Context(), cid, req)
+	c, err := h.svc.UpdateContact(r.Context(), accountID, cid, req)
 	if err != nil {
 		render.Error(w, err)
 		return
@@ -66,12 +73,17 @@ func (h *ContactHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContactHandler) delete(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	cid, err := parseUUID(r, "cid")
 	if err != nil {
 		render.Error(w, err)
 		return
 	}
-	if err = h.svc.DeleteContact(r.Context(), cid); err != nil {
+	if err = h.svc.DeleteContact(r.Context(), accountID, cid); err != nil {
 		render.Error(w, err)
 		return
 	}

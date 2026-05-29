@@ -173,7 +173,11 @@ function ConfirmPop({ open, anchorRect, message, onConfirm, onCancel, confirmLab
     left: Math.max(8, anchorRect.right - 240),
     width: 240,
   };
-  return (
+  // Render into document.body via a portal so the fixed-position popup is not
+  // captured by an ancestor's transform (cards use a lingering translateY from
+  // their entrance animation, which would otherwise become the containing block
+  // and push this popup off-screen).
+  return ReactDOM.createPortal(
     <>
       <div onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />
       <div className="pop" style={{ position: 'fixed', ...style }}>
@@ -183,7 +187,8 @@ function ConfirmPop({ open, anchorRect, message, onConfirm, onCancel, confirmLab
           <Button size="sm" variant="danger" onClick={onConfirm}>{confirmLabel}</Button>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 

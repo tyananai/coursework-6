@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"resume/internal/apperrors"
+	"resume/internal/middleware"
 	"resume/internal/render"
 	"resume/internal/service"
 )
@@ -47,6 +49,11 @@ func (h *SkillHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SkillHandler) update(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	sid, err := parseUUID(r, "sid")
 	if err != nil {
 		render.Error(w, err)
@@ -57,7 +64,7 @@ func (h *SkillHandler) update(w http.ResponseWriter, r *http.Request) {
 		render.Error(w, err)
 		return
 	}
-	sk, err := h.svc.UpdateSkill(r.Context(), sid, req)
+	sk, err := h.svc.UpdateSkill(r.Context(), accountID, sid, req)
 	if err != nil {
 		render.Error(w, err)
 		return
@@ -66,12 +73,17 @@ func (h *SkillHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SkillHandler) delete(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	sid, err := parseUUID(r, "sid")
 	if err != nil {
 		render.Error(w, err)
 		return
 	}
-	if err = h.svc.DeleteSkill(r.Context(), sid); err != nil {
+	if err = h.svc.DeleteSkill(r.Context(), accountID, sid); err != nil {
 		render.Error(w, err)
 		return
 	}

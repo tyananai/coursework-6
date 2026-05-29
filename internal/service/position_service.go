@@ -17,8 +17,8 @@ import (
 type PositionService interface {
 	CreatePosition(ctx context.Context, req CreatePositionRequest) (*models.Position, error)
 	GetPosition(ctx context.Context, id uuid.UUID) (*models.Position, error)
-	UpdatePosition(ctx context.Context, id uuid.UUID, req UpdatePositionRequest) (*models.Position, error)
-	DeletePosition(ctx context.Context, id uuid.UUID) error
+	UpdatePosition(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdatePositionRequest) (*models.Position, error)
+	DeletePosition(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error
 	ListPositions(ctx context.Context, userID uuid.UUID) ([]*models.Position, error)
 }
 
@@ -72,7 +72,7 @@ func (s *positionService) GetPosition(ctx context.Context, id uuid.UUID) (*model
 	return pos, nil
 }
 
-func (s *positionService) UpdatePosition(ctx context.Context, id uuid.UUID, req UpdatePositionRequest) (*models.Position, error) {
+func (s *positionService) UpdatePosition(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdatePositionRequest) (*models.Position, error) {
 	if err := s.validate.Struct(req); err != nil {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, err.Error())
 	}
@@ -82,6 +82,9 @@ func (s *positionService) UpdatePosition(ctx context.Context, id uuid.UUID, req 
 			return nil, apperrors.ErrNotFound
 		}
 		return nil, fmt.Errorf("positionService.UpdatePosition: %w", err)
+	}
+	if err = s.checkOwner(ctx, pos.UserID, accountID); err != nil {
+		return nil, err
 	}
 	pos.JobTitle = req.JobTitle
 	pos.Organization = req.Organization
@@ -97,13 +100,36 @@ func (s *positionService) UpdatePosition(ctx context.Context, id uuid.UUID, req 
 	return pos, nil
 }
 
-func (s *positionService) DeletePosition(ctx context.Context, id uuid.UUID) error {
-	err := s.positions.Delete(ctx, id)
+func (s *positionService) DeletePosition(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error {
+	pos, err := s.positions.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			return apperrors.ErrNotFound
 		}
 		return fmt.Errorf("positionService.DeletePosition: %w", err)
+	}
+	if err = s.checkOwner(ctx, pos.UserID, accountID); err != nil {
+		return err
+	}
+	if err = s.positions.Delete(ctx, id); err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("positionService.DeletePosition: %w", err)
+	}
+	return nil
+}
+
+func (s *positionService) checkOwner(ctx context.Context, userID uuid.UUID, accountID uuid.UUID) error {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("positionService.checkOwner: %w", err)
+	}
+	if u.AccountID == nil || *u.AccountID != accountID {
+		return apperrors.ErrUnauthorized
 	}
 	return nil
 }

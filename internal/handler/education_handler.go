@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"resume/internal/apperrors"
+	"resume/internal/middleware"
 	"resume/internal/render"
 	"resume/internal/service"
 )
@@ -47,6 +49,11 @@ func (h *EducationHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EducationHandler) update(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	eid, err := parseUUID(r, "eid")
 	if err != nil {
 		render.Error(w, err)
@@ -57,7 +64,7 @@ func (h *EducationHandler) update(w http.ResponseWriter, r *http.Request) {
 		render.Error(w, err)
 		return
 	}
-	edu, err := h.svc.UpdateEducation(r.Context(), eid, req)
+	edu, err := h.svc.UpdateEducation(r.Context(), accountID, eid, req)
 	if err != nil {
 		render.Error(w, err)
 		return
@@ -66,12 +73,17 @@ func (h *EducationHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EducationHandler) delete(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	eid, err := parseUUID(r, "eid")
 	if err != nil {
 		render.Error(w, err)
 		return
 	}
-	if err = h.svc.DeleteEducation(r.Context(), eid); err != nil {
+	if err = h.svc.DeleteEducation(r.Context(), accountID, eid); err != nil {
 		render.Error(w, err)
 		return
 	}

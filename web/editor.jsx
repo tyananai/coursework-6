@@ -631,7 +631,7 @@ function ContactRow({ contact, onUpdate, onDelete }) {
     const trimmed = val.trim();
     const e = contact.type === 'email' ? VAL.emailLike(trimmed) : VAL.url(trimmed);
     setErr(e);
-    if (!e && trimmed !== (contact.url || '')) onUpdate({ url: trimmed || null });
+    if (!e && trimmed !== (contact.url || '')) onUpdate({ type: contact.type, url: trimmed || null });
   };
 
   const [confirmNode, askConfirm] = useConfirm();

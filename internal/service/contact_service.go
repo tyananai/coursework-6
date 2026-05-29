@@ -17,8 +17,8 @@ import (
 type ContactService interface {
 	CreateContact(ctx context.Context, req CreateContactRequest) (*models.Contact, error)
 	GetContact(ctx context.Context, id uuid.UUID) (*models.Contact, error)
-	UpdateContact(ctx context.Context, id uuid.UUID, req UpdateContactRequest) (*models.Contact, error)
-	DeleteContact(ctx context.Context, id uuid.UUID) error
+	UpdateContact(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateContactRequest) (*models.Contact, error)
+	DeleteContact(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error
 	ListContacts(ctx context.Context, userID uuid.UUID) ([]*models.Contact, error)
 }
 
@@ -69,7 +69,7 @@ func (s *contactService) GetContact(ctx context.Context, id uuid.UUID) (*models.
 	return c, nil
 }
 
-func (s *contactService) UpdateContact(ctx context.Context, id uuid.UUID, req UpdateContactRequest) (*models.Contact, error) {
+func (s *contactService) UpdateContact(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateContactRequest) (*models.Contact, error) {
 	if err := s.validate.Struct(req); err != nil {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, err.Error())
 	}
@@ -79,6 +79,9 @@ func (s *contactService) UpdateContact(ctx context.Context, id uuid.UUID, req Up
 			return nil, apperrors.ErrNotFound
 		}
 		return nil, fmt.Errorf("contactService.UpdateContact: %w", err)
+	}
+	if err = s.checkOwner(ctx, c.UserID, accountID); err != nil {
+		return nil, err
 	}
 	c.Type = req.Type
 	c.URL = req.URL
@@ -91,13 +94,36 @@ func (s *contactService) UpdateContact(ctx context.Context, id uuid.UUID, req Up
 	return c, nil
 }
 
-func (s *contactService) DeleteContact(ctx context.Context, id uuid.UUID) error {
-	err := s.contacts.Delete(ctx, id)
+func (s *contactService) DeleteContact(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error {
+	c, err := s.contacts.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			return apperrors.ErrNotFound
 		}
 		return fmt.Errorf("contactService.DeleteContact: %w", err)
+	}
+	if err = s.checkOwner(ctx, c.UserID, accountID); err != nil {
+		return err
+	}
+	if err = s.contacts.Delete(ctx, id); err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("contactService.DeleteContact: %w", err)
+	}
+	return nil
+}
+
+func (s *contactService) checkOwner(ctx context.Context, userID uuid.UUID, accountID uuid.UUID) error {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("contactService.checkOwner: %w", err)
+	}
+	if u.AccountID == nil || *u.AccountID != accountID {
+		return apperrors.ErrUnauthorized
 	}
 	return nil
 }

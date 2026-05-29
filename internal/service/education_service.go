@@ -17,8 +17,8 @@ import (
 type EducationService interface {
 	CreateEducation(ctx context.Context, req CreateEducationRequest) (*models.Education, error)
 	GetEducation(ctx context.Context, id uuid.UUID) (*models.Education, error)
-	UpdateEducation(ctx context.Context, id uuid.UUID, req UpdateEducationRequest) (*models.Education, error)
-	DeleteEducation(ctx context.Context, id uuid.UUID) error
+	UpdateEducation(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateEducationRequest) (*models.Education, error)
+	DeleteEducation(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error
 	ListEducation(ctx context.Context, userID uuid.UUID) ([]*models.Education, error)
 }
 
@@ -70,7 +70,7 @@ func (s *educationService) GetEducation(ctx context.Context, id uuid.UUID) (*mod
 	return edu, nil
 }
 
-func (s *educationService) UpdateEducation(ctx context.Context, id uuid.UUID, req UpdateEducationRequest) (*models.Education, error) {
+func (s *educationService) UpdateEducation(ctx context.Context, accountID uuid.UUID, id uuid.UUID, req UpdateEducationRequest) (*models.Education, error) {
 	if err := s.validate.Struct(req); err != nil {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, err.Error())
 	}
@@ -80,6 +80,9 @@ func (s *educationService) UpdateEducation(ctx context.Context, id uuid.UUID, re
 			return nil, apperrors.ErrNotFound
 		}
 		return nil, fmt.Errorf("educationService.UpdateEducation: %w", err)
+	}
+	if err = s.checkOwner(ctx, edu.UserID, accountID); err != nil {
+		return nil, err
 	}
 	edu.SchoolName = req.SchoolName
 	edu.StartDate = req.StartDate
@@ -93,13 +96,36 @@ func (s *educationService) UpdateEducation(ctx context.Context, id uuid.UUID, re
 	return edu, nil
 }
 
-func (s *educationService) DeleteEducation(ctx context.Context, id uuid.UUID) error {
-	err := s.education.Delete(ctx, id)
+func (s *educationService) DeleteEducation(ctx context.Context, accountID uuid.UUID, id uuid.UUID) error {
+	edu, err := s.education.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			return apperrors.ErrNotFound
 		}
 		return fmt.Errorf("educationService.DeleteEducation: %w", err)
+	}
+	if err = s.checkOwner(ctx, edu.UserID, accountID); err != nil {
+		return err
+	}
+	if err = s.education.Delete(ctx, id); err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("educationService.DeleteEducation: %w", err)
+	}
+	return nil
+}
+
+func (s *educationService) checkOwner(ctx context.Context, userID uuid.UUID, accountID uuid.UUID) error {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("educationService.checkOwner: %w", err)
+	}
+	if u.AccountID == nil || *u.AccountID != accountID {
+		return apperrors.ErrUnauthorized
 	}
 	return nil
 }

@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"resume/internal/apperrors"
+	"resume/internal/middleware"
 	"resume/internal/render"
 	"resume/internal/service"
 )
@@ -47,6 +49,11 @@ func (h *PositionHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PositionHandler) update(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	pid, err := parseUUID(r, "pid")
 	if err != nil {
 		render.Error(w, err)
@@ -57,7 +64,7 @@ func (h *PositionHandler) update(w http.ResponseWriter, r *http.Request) {
 		render.Error(w, err)
 		return
 	}
-	pos, err := h.svc.UpdatePosition(r.Context(), pid, req)
+	pos, err := h.svc.UpdatePosition(r.Context(), accountID, pid, req)
 	if err != nil {
 		render.Error(w, err)
 		return
@@ -66,12 +73,17 @@ func (h *PositionHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PositionHandler) delete(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	pid, err := parseUUID(r, "pid")
 	if err != nil {
 		render.Error(w, err)
 		return
 	}
-	if err = h.svc.DeletePosition(r.Context(), pid); err != nil {
+	if err = h.svc.DeletePosition(r.Context(), accountID, pid); err != nil {
 		render.Error(w, err)
 		return
 	}

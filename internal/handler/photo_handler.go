@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"resume/internal/apperrors"
+	"resume/internal/middleware"
 	"resume/internal/render"
 	"resume/internal/service"
 )
@@ -35,6 +36,11 @@ func NewPhotoHandler(svc service.UserService, uploadDir string) *PhotoHandler {
 }
 
 func (h *PhotoHandler) upload(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	userID, err := parseUUID(r, "id")
 	if err != nil {
 		render.Error(w, err)
@@ -101,7 +107,7 @@ func (h *PhotoHandler) upload(w http.ResponseWriter, r *http.Request) {
 		scheme = "https"
 	}
 	publicURL := scheme + "://" + r.Host + "/uploads/" + filename
-	user, err := h.svc.UpdateUserPhoto(r.Context(), userID, publicURL)
+	user, err := h.svc.UpdateUserPhoto(r.Context(), accountID, userID, publicURL)
 	if err != nil {
 		render.Error(w, err)
 		return

@@ -46,10 +46,9 @@ func (h *UserHandler) Mount(r chi.Router) {
 	})
 
 	r.Route("/{id}", func(r chi.Router) {
-		r.Get("/", h.get) // public: allows sharing resume links
-
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.NewAuth(h.tokens))
+			r.Get("/", h.get)
 			r.Put("/", h.update)
 			r.Delete("/", h.delete)
 			r.Post("/photo", NewPhotoHandler(h.users, h.uploadDir).upload)
@@ -95,6 +94,11 @@ func (h *UserHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	id, err := parseUUID(r, "id")
 	if err != nil {
 		render.Error(w, err)
@@ -105,7 +109,7 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		render.Error(w, err)
 		return
 	}
-	user, err := h.users.UpdateUser(r.Context(), id, req)
+	user, err := h.users.UpdateUser(r.Context(), accountID, id, req)
 	if err != nil {
 		render.Error(w, err)
 		return
@@ -114,12 +118,17 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) delete(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.GetAccountID(r.Context())
+	if !ok {
+		render.Error(w, apperrors.ErrUnauthorized)
+		return
+	}
 	id, err := parseUUID(r, "id")
 	if err != nil {
 		render.Error(w, err)
 		return
 	}
-	if err = h.users.DeleteUser(r.Context(), id); err != nil {
+	if err = h.users.DeleteUser(r.Context(), accountID, id); err != nil {
 		render.Error(w, err)
 		return
 	}
